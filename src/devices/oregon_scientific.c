@@ -533,12 +533,15 @@ static int oregon_scientific_v3_decode(r_device *decoder, bitbuffer_t *bitbuffer
     uint8_t const os_pattern[] = {0x00, 0x05};
     // CM180 preamble is 00 00 00 46, with 0x46 already data
     uint8_t const cm180_pattern[] = {0x00, 0x46};
+    // CM130 preamble is 00 00 00 60, with 0x60 already data
+    uint8_t const cm130_pattern[] = {0x00, 0x60};
     // workaround for a broken manchester demod
     // CM160 preamble might look like 7f ff ff aa, i.e. ff ff f5
     uint8_t const alt_pattern[] = {0xff, 0xf5};
 
     int os_pos    = bitbuffer_search(bitbuffer, 0, 0, os_pattern, 16) + 16;
     int cm180_pos = bitbuffer_search(bitbuffer, 0, 0, cm180_pattern, 16) + 8; // keep the 0x46
+    int cm130_pos = bitbuffer_search(bitbuffer, 0, 0, cm130_pattern, 16) + 8; // keep the 0x60
     int alt_pos   = bitbuffer_search(bitbuffer, 0, 0, alt_pattern, 16) + 16;
 
     if (bitbuffer->bits_per_row[0] - os_pos >= 7 * 8) {
@@ -551,6 +554,11 @@ static int oregon_scientific_v3_decode(r_device *decoder, bitbuffer_t *bitbuffer
     else if (bitbuffer->bits_per_row[0] - cm180_pos >= 52) {
         msg_pos = cm180_pos;
         msg_len = bitbuffer->bits_per_row[0] - cm180_pos;
+    }
+
+    else if (bitbuffer->bits_per_row[0] - cm130_pos >= 96) {
+        msg_pos = cm130_pos;
+        msg_len = bitbuffer->bits_per_row[0] - cm130_pos;
     }
 
     else if (bitbuffer->bits_per_row[0] - alt_pos >= 7 * 8) {
@@ -720,6 +728,15 @@ static int oregon_scientific_v3_decode(r_device *decoder, bitbuffer_t *bitbuffer
             decoder_output_data(decoder, data);
             return 1;
         }
+    }
+    else if (msg[0] == 0x60) { // Owl CM130 readings
+        msg[0]    = msg[0] & 0x0f;
+        int valid = validate_os_checksum(decoder, msg, 26);
+        bitrow_printf(msg, msg_len, "%s: CM130(orig) ", __func__);
+        for (int k = 0; k < BITBUF_COLS; k++) { // Reverse nibbles
+            msg[k] = (msg[k] & 0xF0) >> 4 | (msg[k] & 0x0F) << 4;
+        }
+        bitrow_printf(msg, msg_len, "%s: CM130(flip) ", __func__);
     }
     else if ((msg[0] != 0) && (msg[1] != 0)) { // sync nibble was found and some data is present...
         if (decoder->verbose) {
