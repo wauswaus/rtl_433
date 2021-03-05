@@ -229,7 +229,9 @@ static int fineoffset_WH24_callback(r_device *decoder, bitbuffer_t *bitbuffer)
             type = MODEL_WH65B;
     else
         type = MODEL_WH65B; // nominal 12 bits postamble
-
+    
+    // Force model always to WH65B
+    type = MODEL_WH65B;
     bitbuffer_extract_bytes(bitbuffer, 0, bit_offset, b, sizeof(b) * 8);
 
     if (decoder->verbose) {
